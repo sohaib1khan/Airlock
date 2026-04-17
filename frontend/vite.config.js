@@ -14,19 +14,52 @@ const frontendUrlHost = (() => {
     return null;
   }
 })();
-const allowedHosts = Array.from(
-  new Set(
-    [
-      "localhost",
-      "127.0.0.1",
-      frontendUrlHost,
-      ...(process.env.VITE_ALLOWED_HOSTS || "")
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean),
-    ].filter(Boolean),
-  ),
-);
+
+const allowAllHosts = (() => {
+  const v = (process.env.VITE_ALLOW_ALL_HOSTS || "").trim().toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  const list = (process.env.VITE_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes("*") || list.includes("all");
+})();
+
+const allowedHosts = allowAllHosts
+  ? true
+  : Array.from(
+      new Set(
+        [
+          "localhost",
+          "127.0.0.1",
+          frontendUrlHost,
+          ...(process.env.VITE_ALLOWED_HOSTS || "")
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .filter((x) => !["*", "all"].includes(x.toLowerCase())),
+        ].filter(Boolean),
+      ),
+    );
+
+/** HMR behind HTTPS reverse proxy (Nginx Proxy Manager, Cloudflare, etc.). */
+function devHmrSetting() {
+  const off = (process.env.VITE_DEV_HMR || "").trim().toLowerCase();
+  if (off === "false" || off === "0" || off === "off") {
+    return false;
+  }
+  const host = (process.env.VITE_DEV_HMR_HOST || "").trim();
+  if (!host) return null;
+  const protocol = (process.env.VITE_DEV_HMR_PROTOCOL || "wss").trim();
+  const clientPort = Number.parseInt(process.env.VITE_DEV_HMR_CLIENT_PORT || "443", 10);
+  return {
+    host,
+    protocol,
+    clientPort: Number.isNaN(clientPort) ? 443 : clientPort,
+  };
+}
+
+const devHmr = devHmrSetting();
 
 export default defineConfig({
   plugins: [
@@ -86,6 +119,7 @@ export default defineConfig({
   },
   server: {
     allowedHosts,
+    ...(devHmr !== null ? { hmr: devHmr } : {}),
     proxy: {
       "/api": {
         target: "http://backend:8000",
