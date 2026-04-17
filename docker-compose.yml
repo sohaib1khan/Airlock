@@ -42,14 +42,6 @@ services:
     entrypoint: ["true"]
     restart: "no"
 
-  # Cinnamon variant (same VNC/audio contract as bastion-desktop).
-  bastion-cinnamon:
-    image: airlock/bastion-cinnamon:latest
-    build:
-      context: ./Bastion_templates/desktop-cinnamon
-    entrypoint: ["true"]
-    restart: "no"
-
 networks:
   # Real Docker network name = INTERNAL_DOCKER_NETWORK (default airlock_internal).
   internal_workspace:

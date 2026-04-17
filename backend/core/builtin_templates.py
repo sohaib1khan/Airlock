@@ -30,6 +30,8 @@ def seed_builtin_templates(db: Session) -> int:
 
     inserted = 0
     updated = 0
+    removed = 0
+    seen_builtin_ids: set[str] = set()
     for path in sorted(root.rglob("*.airlock-template.yaml")):
         try:
             raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -48,6 +50,7 @@ def seed_builtin_templates(db: Session) -> int:
 
         data = req.template
         tid = str(_stable_template_id(path))
+        seen_builtin_ids.add(tid)
         existing = db.get(ContainerTemplate, tid)
         if existing is not None:
             # Keep built-ins in sync with the repo-shipped template files.
@@ -108,7 +111,14 @@ def seed_builtin_templates(db: Session) -> int:
         inserted += 1
         logger.info("Seeded built-in template %s (%s)", data.name, path.name)
 
-    if not inserted and not updated:
+    # Remove stale built-ins whose source files were deleted from Bastion_templates.
+    for existing in db.query(ContainerTemplate).filter(ContainerTemplate.created_by_id.is_(None)).all():
+        if existing.id not in seen_builtin_ids:
+            logger.info("Removing stale built-in template %s (%s)", existing.name, existing.id)
+            db.delete(existing)
+            removed += 1
+
+    if not inserted and not updated and not removed:
         return 0
     try:
         db.commit()
@@ -116,4 +126,4 @@ def seed_builtin_templates(db: Session) -> int:
         db.rollback()
         logger.warning("Built-in template seed hit a DB conflict; another process may have seeded")
         return 0
-    return inserted + updated
+    return inserted + updated + removed

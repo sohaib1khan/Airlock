@@ -8,7 +8,7 @@ template:
     docker pull skhan1010/bastion-desktop:latest
     The template is pre-seeded when the backend starts.
   docker_image: skhan1010/bastion-desktop:latest
-  workspace_home: /home/kuser
+  workspace_home: /home/kuser/workspace
   tools:
     - xfce4
     - tigervnc

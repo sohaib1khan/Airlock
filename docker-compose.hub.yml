@@ -12,7 +12,6 @@
 #
 # Bastion desktop workspace images are optional; build on the host for templates you use:
 #   docker compose build bastion-desktop
-#   docker compose build bastion-cinnamon
 
 services:
   backend:

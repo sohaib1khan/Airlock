@@ -14,9 +14,11 @@ export function SessionFrame({ session }) {
   const mountRef = useRef(null);
   const rfbRef = useRef(null);
   const audioRef = useRef(null);
+  const mobileInputRef = useRef(null);
   const sessionIdRef = useRef(session?.id ?? null);
   const [status, setStatus] = useState("Preparing transport…");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showMobileKeyboard, setShowMobileKeyboard] = useState(false);
   const clipboardEnabledRef = useRef(true);
   const audioEnabledRef = useRef(false);
 
@@ -30,6 +32,13 @@ export function SessionFrame({ session }) {
     }
     audioEnabledRef.current = false;
   }, [session?.id]);
+
+  useEffect(() => {
+    const coarsePointer =
+      typeof window !== "undefined" &&
+      (window.matchMedia?.("(pointer: coarse)")?.matches || "ontouchstart" in window);
+    setShowMobileKeyboard(Boolean(coarsePointer));
+  }, []);
 
   useEffect(() => {
     if (!session?.id || !session?.websocket_url || !mountRef.current) return;
@@ -47,6 +56,7 @@ export function SessionFrame({ session }) {
         rfb.viewOnly = false;
         rfb.scaleViewport = true;
         rfb.resizeSession = true;
+        rfb.focusOnClick = true;
         rfb.background = "#0b1220";
         rfb.addEventListener("connect", () => setStatus("Connected"));
         rfb.addEventListener("disconnect", () => setStatus("Disconnected"));
@@ -73,6 +83,40 @@ export function SessionFrame({ session }) {
       }
     };
   }, [session?.id, session?.websocket_url]);
+
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+    function onPointerDown() {
+      rfbRef.current?.focus();
+    }
+    mount.addEventListener("pointerdown", onPointerDown, { passive: true });
+    return () => {
+      mount.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, []);
+
+  function openMobileKeyboard() {
+    const el = mobileInputRef.current;
+    if (!el) return;
+    el.focus();
+    setStatus("Mobile keyboard ready");
+  }
+
+  function onMobileInputChange(event) {
+    const text = event.target.value;
+    if (!text) return;
+    if (rfbRef.current) {
+      try {
+        // Mobile OS keyboards cannot target the canvas directly, so forward text via VNC clipboard.
+        rfbRef.current.clipboardPasteFrom(text);
+        setStatus(`Typed ${text.length} char${text.length === 1 ? "" : "s"}`);
+      } catch {
+        setStatus("Failed to send typed text");
+      }
+    }
+    event.target.value = "";
+  }
 
   useEffect(() => {
     function onClipboardToggle(event) {
@@ -144,12 +188,36 @@ export function SessionFrame({ session }) {
         <div>
           Status: <span className="font-medium text-foreground">{status}</span>
         </div>
+        {showMobileKeyboard ? (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={openMobileKeyboard}
+              className="rounded-md border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground"
+            >
+              Open mobile keyboard
+            </button>
+            <input
+              ref={mobileInputRef}
+              type="text"
+              inputMode="text"
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={onMobileInputChange}
+              className="sr-only"
+              aria-label="Mobile keyboard input bridge"
+            />
+          </div>
+        ) : null}
       </div>
       <div
         ref={mountRef}
         className={`overflow-hidden rounded-md border border-border bg-black ${
           isFullscreen ? "h-screen w-screen" : "h-[520px]"
         }`}
+        style={{ touchAction: "none" }}
       />
       {/* Hidden audio element — connected to the container audio stream when user enables audio */}
       <audio ref={audioRef} style={{ display: "none" }} />
