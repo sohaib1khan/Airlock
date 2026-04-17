@@ -36,6 +36,7 @@ from api.schemas import (
 from config import get_settings
 from core.audit_log import log_security_event
 from core.cookies import set_refresh_cookie
+from core.public_url import webauthn_origin_for_request, webauthn_rp_id_for_request
 from core.datetime_util import to_utc_aware
 from core.limiter import limiter
 from core.mfa_ops import (
@@ -73,7 +74,7 @@ def _b64url_to_bytes(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + pad)
 
 
-def _verify_webauthn_assertion(db: Session, user: User, credential: dict) -> bool:
+def _verify_webauthn_assertion(db: Session, user: User, credential: dict, request: Request) -> bool:
     row = db.get(WebauthnChallengeStore, user.id)
     if row is None or row.kind != "authenticate":
         return False
@@ -94,8 +95,8 @@ def _verify_webauthn_assertion(db: Session, user: User, credential: dict) -> boo
         verification = verify_authentication_response(
             credential=credential,
             expected_challenge=challenge_bytes,
-            expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_rp_id=webauthn_rp_id_for_request(request, settings),
+            expected_origin=webauthn_origin_for_request(request, settings),
             credential_public_key=cred_pub,
             credential_current_sign_count=sign_count,
             require_user_verification=True,
@@ -132,7 +133,7 @@ def mfa_verify(
         if settings.yubikey_client_id:
             ok = yubikey_verify_otp_for_user(db, user, body.yubikey_otp.strip(), settings)
     elif body.webauthn:
-        ok = _verify_webauthn_assertion(db, user, body.webauthn)
+        ok = _verify_webauthn_assertion(db, user, body.webauthn, request)
 
     if not ok:
         log_security_event(
@@ -151,7 +152,7 @@ def mfa_verify(
 
     access = create_access_token(user.id, settings, "full")
     refresh = create_refresh_token(user.id, settings, mfa_satisfied=True)
-    set_refresh_cookie(response, refresh, settings)
+    set_refresh_cookie(response, refresh, settings, request=request)
     log_security_event(
         "mfa_verify",
         _ip(request),
@@ -193,6 +194,7 @@ def totp_begin(
 
 @router.post("/totp/confirm", response_model=TotpConfirmResponse)
 def totp_confirm(
+    request: Request,
     response: Response,
     body: TotpConfirmRequest,
     db: Session = Depends(get_db),
@@ -221,7 +223,7 @@ def totp_confirm(
     if not had_any_mfa:
         access = create_access_token(user.id, settings, "full")
         refresh = create_refresh_token(user.id, settings, mfa_satisfied=True)
-        set_refresh_cookie(response, refresh, settings)
+        set_refresh_cookie(response, refresh, settings, request=request)
         access_token = access
     return TotpConfirmResponse(backup_codes=codes, access_token=access_token)
 
@@ -237,6 +239,7 @@ def enrollment_capabilities(
 
 @router.post("/yubikey/enroll", response_model=TotpConfirmResponse)
 def yubikey_enroll(
+    request: Request,
     response: Response,
     body: YubikeyEnrollRequest,
     db: Session = Depends(get_db),
@@ -296,7 +299,7 @@ def yubikey_enroll(
     if not had_any_mfa:
         access = create_access_token(user.id, settings, "full")
         refresh = create_refresh_token(user.id, settings, mfa_satisfied=True)
-        set_refresh_cookie(response, refresh, settings)
+        set_refresh_cookie(response, refresh, settings, request=request)
         access_token = access
     return TotpConfirmResponse(backup_codes=codes, access_token=access_token)
 
@@ -390,6 +393,7 @@ def backup_regenerate(
 
 @router.post("/webauthn/register/begin")
 def webauthn_register_begin(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_for_mfa_enrollment),
 ) -> dict:
@@ -409,7 +413,7 @@ def webauthn_register_begin(
 
     uid = user.id.encode("utf-8")[:64]
     opts = generate_registration_options(
-        rp_id=settings.webauthn_rp_id,
+        rp_id=webauthn_rp_id_for_request(request, settings),
         rp_name=settings.webauthn_rp_name,
         user_name=user.username,
         user_id=uid,
@@ -436,6 +440,7 @@ def webauthn_register_begin(
 
 @router.post("/webauthn/register/finish")
 def webauthn_register_finish(
+    request: Request,
     response: Response,
     body: WebAuthnFinishRequest,
     db: Session = Depends(get_db),
@@ -454,8 +459,8 @@ def webauthn_register_finish(
         verification = verify_registration_response(
             credential=body.credential,
             expected_challenge=expected_challenge,
-            expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_rp_id=webauthn_rp_id_for_request(request, settings),
+            expected_origin=webauthn_origin_for_request(request, settings),
             require_user_verification=True,
         )
         cid_b64url = bytes_to_base64url(verification.credential_id)
@@ -484,7 +489,7 @@ def webauthn_register_finish(
             out["backup_codes"] = generate_backup_codes(db, user, settings)
             access = create_access_token(user.id, settings, "full")
             refresh = create_refresh_token(user.id, settings, mfa_satisfied=True)
-            set_refresh_cookie(response, refresh, settings)
+            set_refresh_cookie(response, refresh, settings, request=request)
             out["access_token"] = access
             out["token_type"] = "bearer"
         db.commit()
@@ -498,6 +503,7 @@ def webauthn_register_finish(
 
 @router.post("/webauthn/authenticate/begin")
 def webauthn_authenticate_begin(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     payload: dict = Depends(get_access_payload),
@@ -523,7 +529,7 @@ def webauthn_authenticate_begin(
     if not allow:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No security keys enrolled")
     opts = generate_authentication_options(
-        rp_id=settings.webauthn_rp_id,
+        rp_id=webauthn_rp_id_for_request(request, settings),
         allow_credentials=allow,
     )
     chal_b64 = base64.b64encode(opts.challenge).decode()

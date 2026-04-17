@@ -16,6 +16,7 @@ from api.schemas import (
 )
 from config import get_settings
 from core.audit_log import log_security_event
+from core.public_url import webauthn_origin_for_request, webauthn_rp_id_for_request
 from core.datetime_util import to_utc_aware
 from core.limiter import limiter
 from core.mfa_ops import (
@@ -43,7 +44,7 @@ def _ip(request: Request) -> str:
     return "unknown"
 
 
-def _verify_preconnect_webauthn(db: Session, user: User, credential: dict) -> bool:
+def _verify_preconnect_webauthn(db: Session, user: User, credential: dict, request: Request) -> bool:
     row = db.get(WebauthnChallengeStore, user.id)
     if row is None or row.kind != "authenticate":
         return False
@@ -64,8 +65,8 @@ def _verify_preconnect_webauthn(db: Session, user: User, credential: dict) -> bo
         verification = verify_authentication_response(
             credential=credential,
             expected_challenge=challenge_bytes,
-            expected_rp_id=settings.webauthn_rp_id,
-            expected_origin=settings.webauthn_origin,
+            expected_rp_id=webauthn_rp_id_for_request(request, settings),
+            expected_origin=webauthn_origin_for_request(request, settings),
             credential_public_key=cred_pub,
             credential_current_sign_count=sign_count,
             require_user_verification=True,
@@ -144,7 +145,7 @@ def preconnect_verify(
     elif body.yubikey_otp and body.yubikey_otp.strip() and settings.yubikey_client_id:
         ok = yubikey_verify_otp_for_user(db, user, body.yubikey_otp.strip(), settings)
     elif body.webauthn:
-        ok = _verify_preconnect_webauthn(db, user, body.webauthn)
+        ok = _verify_preconnect_webauthn(db, user, body.webauthn, request)
 
     if not ok:
         log_security_event(

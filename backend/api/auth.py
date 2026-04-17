@@ -91,7 +91,7 @@ def login(
     refresh = create_refresh_token(user.id, settings, mfa_satisfied=False)
     mfa_required = True
     mfa_enroll_required = not has_mfa
-    set_refresh_cookie(response, refresh, settings)
+    set_refresh_cookie(response, refresh, settings, request=request)
 
     log_security_event(
         "login",
@@ -140,8 +140,8 @@ def refresh_session(request: Request, db: Session = Depends(get_db)) -> AccessTo
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, bool]:
-    clear_refresh_cookie(response, settings)
+def logout(request: Request, response: Response) -> dict[str, bool]:
+    clear_refresh_cookie(response, settings, request=request)
     return {"ok": True}
 
 

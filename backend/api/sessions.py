@@ -17,6 +17,7 @@ from core.audit_log import log_security_event
 from core.datetime_util import format_datetime_for_display, to_rfc3339_utc
 from core.docker_manager import DockerManagerError, get_docker_manager
 from core.security import decode_connect_token
+from core.public_url import cookie_secure_for_request
 from core.session_manager import SessionManagerError, build_session_ticket, get_session_manager
 from db.database import get_db
 from db.models import ContainerTemplate, SessionStatus, User, WorkspaceSession
@@ -70,24 +71,24 @@ def _ticket_hash(ticket: str) -> str:
     return hashlib.sha256((settings.session_cookie_domain or "local").encode() + ticket.encode()).hexdigest()
 
 
-def _set_session_ticket_cookie(response: Response, ticket: str) -> None:
+def _set_session_ticket_cookie(response: Response, ticket: str, request: Request) -> None:
     response.set_cookie(
         key="session_ticket",
         value=ticket,
         httponly=True,
-        secure=settings.cookie_secure,
+        secure=cookie_secure_for_request(request, settings),
         samesite="strict",
         path="/",
     )
 
 
-def _rotate_session_ticket(db: Session, row: WorkspaceSession, response: Response) -> None:
+def _rotate_session_ticket(db: Session, row: WorkspaceSession, response: Response, request: Request) -> None:
     ticket = build_session_ticket()
     row.session_token_hash = _ticket_hash(ticket)
     db.add(row)
     db.commit()
     db.refresh(row)
-    _set_session_ticket_cookie(response, ticket)
+    _set_session_ticket_cookie(response, ticket, request)
 
 
 def _normalize_workspace_path(path: str | None, root: str) -> str:
@@ -144,7 +145,7 @@ def start_session(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
         logger.warning("session_start failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
-    _rotate_session_ticket(db, ws, response)
+    _rotate_session_ticket(db, ws, response, request)
 
     log_security_event(
         "session_start",
@@ -211,12 +212,13 @@ def get_session(
 @router.post("/{session_id}/ticket", response_model=SessionResponse)
 def issue_session_ticket(
     session_id: str,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_full_scope),
 ) -> SessionResponse:
     row = _require_owned_session(db, user, session_id)
-    _rotate_session_ticket(db, row, response)
+    _rotate_session_ticket(db, row, response, request)
     return _to_response(row, db)
 
 

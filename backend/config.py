@@ -1,6 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
 
     database_url: str = Field(default="sqlite:///./data/airlock.db", alias="DATABASE_URL")
-    allowed_origins: str = Field(default="http://localhost:5173", alias="ALLOWED_ORIGINS")
+    # Extra static CORS origins (comma-separated). Often unnecessary: public URL is inferred from proxy headers.
+    allowed_origins: str = Field(default="", alias="ALLOWED_ORIGINS")
 
     audit_log_file: str = Field(default="./data/audit.log", alias="AUDIT_LOG_FILE")
     audit_log_level: str = Field(default="INFO", alias="AUDIT_LOG_LEVEL")
@@ -27,6 +28,9 @@ class Settings(BaseSettings):
 
     session_cookie_domain: Optional[str] = Field(default=None, alias="SESSION_COOKIE_DOMAIN")
     cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
+    # When true, X-Forwarded-Host / X-Forwarded-Proto shape CORS, WebAuthn, and cookie Secure flag.
+    # Disable only if the API is exposed directly to untrusted clients (no reverse proxy).
+    trust_forwarded_headers: bool = Field(default=True, alias="TRUST_FORWARDED_HEADERS")
 
     rate_limit_login: str = Field(default="5/minute", alias="RATE_LIMIT_LOGIN")
     rate_limit_setup: str = Field(default="10/minute", alias="RATE_LIMIT_SETUP")
@@ -78,9 +82,6 @@ class Settings(BaseSettings):
             if candidate.is_dir():
                 return candidate
         return None
-
-    def cors_origins(self) -> List[str]:
-        return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
 
 
 @lru_cache

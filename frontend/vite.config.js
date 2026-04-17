@@ -15,32 +15,26 @@ const frontendUrlHost = (() => {
   }
 })();
 
-const allowAllHosts = (() => {
-  const v = (process.env.VITE_ALLOW_ALL_HOSTS || "").trim().toLowerCase();
-  if (v === "true" || v === "1" || v === "yes") return true;
-  const list = (process.env.VITE_ALLOWED_HOSTS || "")
-    .split(",")
-    .map((x) => x.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes("*") || list.includes("all");
-})();
+// Allow any Host by default (reverse proxies, arbitrary domains). Set VITE_RESTRICT_DEV_HOSTS=true
+// to only allow localhost + FRONTEND_URL host + VITE_ALLOWED_HOSTS.
+const restrictDevHosts =
+  (process.env.VITE_RESTRICT_DEV_HOSTS || "").trim().toLowerCase() === "true";
 
-const allowedHosts = allowAllHosts
-  ? true
-  : Array.from(
-      new Set(
-        [
-          "localhost",
-          "127.0.0.1",
-          frontendUrlHost,
-          ...(process.env.VITE_ALLOWED_HOSTS || "")
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean)
-            .filter((x) => !["*", "all"].includes(x.toLowerCase())),
-        ].filter(Boolean),
-      ),
-    );
+const explicitAllowedHosts = Array.from(
+  new Set(
+    [
+      "localhost",
+      "127.0.0.1",
+      frontendUrlHost,
+      ...(process.env.VITE_ALLOWED_HOSTS || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ].filter(Boolean),
+  ),
+);
+
+const allowedHosts = restrictDevHosts ? explicitAllowedHosts : true;
 
 /** HMR behind HTTPS reverse proxy (Nginx Proxy Manager, Cloudflare, etc.). */
 function devHmrSetting() {

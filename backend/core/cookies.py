@@ -1,14 +1,18 @@
-from fastapi import Response
+from fastapi import Request, Response
 
 from config import Settings
+from core.public_url import cookie_secure_for_request
 
 
-def set_refresh_cookie(response: Response, token: str, settings: Settings) -> None:
+def set_refresh_cookie(
+    response: Response, token: str, settings: Settings, request: Request | None = None
+) -> None:
+    secure = cookie_secure_for_request(request, settings) if request is not None else settings.cookie_secure
     kwargs: dict = {
         "key": "refresh_token",
         "value": token,
         "httponly": True,
-        "secure": settings.cookie_secure,
+        "secure": secure,
         "samesite": "strict",
         "max_age": int(settings.refresh_token_expire_hours * 3600),
         "path": "/",
@@ -18,12 +22,13 @@ def set_refresh_cookie(response: Response, token: str, settings: Settings) -> No
     response.set_cookie(**kwargs)
 
 
-def clear_refresh_cookie(response: Response, settings: Settings) -> None:
+def clear_refresh_cookie(response: Response, settings: Settings, request: Request | None = None) -> None:
+    secure = cookie_secure_for_request(request, settings) if request is not None else settings.cookie_secure
     kwargs: dict = {
         "key": "refresh_token",
         "path": "/",
         "httponly": True,
-        "secure": settings.cookie_secure,
+        "secure": secure,
         "samesite": "strict",
     }
     if settings.session_cookie_domain:

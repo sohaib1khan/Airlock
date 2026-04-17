@@ -5,7 +5,6 @@ from contextlib import suppress
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -25,6 +24,7 @@ from core.builtin_templates import seed_builtin_templates
 from core.limiter import limiter
 from core.session_expiry import session_expiry_loop
 from db.database import SessionLocal
+from middleware.dynamic_cors import DynamicCORSMiddleware
 from middleware.request_id import RequestIdMiddleware
 
 logger = logging.getLogger(__name__)
@@ -60,13 +60,7 @@ app.state.limiter = limiter
 
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(DynamicCORSMiddleware)
 
 app.include_router(health_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
