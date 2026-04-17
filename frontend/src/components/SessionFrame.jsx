@@ -220,7 +220,8 @@ export function SessionFrame({ session }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
+      {/* Hide verbose debug info on mobile to maximise VNC space */}
+      <div className={`rounded-md border border-border bg-card p-3 text-xs text-muted-foreground ${showMobileKeyboard ? "hidden sm:block" : ""}`}>
         <div>
           Proxy path: <span className="font-mono text-foreground">{session.proxy_path}</span>
         </div>
@@ -230,25 +231,24 @@ export function SessionFrame({ session }) {
         <div>
           Status: <span className="font-medium text-foreground">{status}</span>
         </div>
-        {showMobileKeyboard ? (
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={openMobileKeyboard}
-              className="rounded-md border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground"
-            >
-              Open mobile keyboard
-            </button>
-          </div>
-        ) : null}
       </div>
       {/* Wrapper is the fullscreen target so overlays inside remain visible */}
       <div
         ref={mountRef}
         className={`relative overflow-hidden rounded-md border border-border bg-black ${
-          isFullscreen ? "h-screen w-screen" : "h-[520px]"
+          isFullscreen ? "h-screen w-screen" : ""
         }`}
-        style={{ touchAction: "none" }}
+        style={{
+          touchAction: "none",
+          // dvh = dynamic viewport height: shrinks automatically when the mobile
+          // soft keyboard opens, so the VNC frame stays fully visible.
+          // resizeSession:true on the RFB tells the remote desktop to resize to fit.
+          height: isFullscreen
+            ? undefined
+            : showMobileKeyboard
+              ? "55dvh"
+              : "520px",
+        }}
       >
         {/* noVNC renders into this inner div */}
         <div ref={vncRef} className="absolute inset-0" />
