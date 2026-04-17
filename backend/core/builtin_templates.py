@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from api.schemas import ContainerTemplateImportRequest
@@ -31,6 +32,21 @@ def seed_builtin_templates(db: Session) -> int:
     inserted = 0
     updated = 0
     removed = 0
+
+    # Force-remove legacy Cinnamon templates that may still exist from earlier releases.
+    cinnamon_rows = (
+        db.query(ContainerTemplate)
+        .filter(
+            func.lower(ContainerTemplate.name).like("%cinnamon%")
+            | func.lower(ContainerTemplate.docker_image).like("%bastion-cinnamon%")
+        )
+        .all()
+    )
+    for row in cinnamon_rows:
+        logger.info("Removing deprecated Cinnamon template %s (%s)", row.name, row.id)
+        db.delete(row)
+        removed += 1
+
     seen_builtin_ids: set[str] = set()
     for path in sorted(root.rglob("*.airlock-template.yaml")):
         try:
