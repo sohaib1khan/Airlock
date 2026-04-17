@@ -35,7 +35,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${AIRLOCK_FRONTEND_PORT:-32770}:5173"
+      - "${AIRLOCK_FRONTEND_PORT:-32770}:80"
     depends_on:
       - backend
     restart: unless-stopped

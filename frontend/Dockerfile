@@ -1,13 +1,18 @@
-FROM node:22-alpine
+# Production UI: static Vite build + nginx (reliable behind HTTPS reverse proxies).
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Sane defaults behind Nginx/Cloudflare: any public hostname, no HMR WebSocket (avoids wss issues).
-ENV VITE_DEV_HMR=off
-
-COPY package.json /app/package.json
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . /app
+ARG VITE_REPO_URL=
+ENV VITE_REPO_URL=$VITE_REPO_URL
 
-CMD ["npm", "run", "dev"]
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf

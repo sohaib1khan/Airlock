@@ -56,7 +56,7 @@ compose_host_url() {
 
 print_access() {
   local fe_addr be_addr fe_url api_url
-  fe_addr=$(compose port frontend 5173 2>/dev/null || true)
+  fe_addr=$(compose port frontend 80 2>/dev/null || true)
   be_addr=$(compose port backend 8000 2>/dev/null || true)
   fe_url=$(compose_host_url "$fe_addr")
   api_url=$(compose_host_url "$be_addr")
