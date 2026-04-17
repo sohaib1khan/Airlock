@@ -99,23 +99,64 @@ export function SessionFrame({ session }) {
   function openMobileKeyboard() {
     const el = mobileInputRef.current;
     if (!el) return;
+    el.value = " ";
     el.focus();
-    setStatus("Mobile keyboard ready");
+    el.setSelectionRange(1, 1);
+    setStatus("Mobile keyboard ready — tap here to type");
   }
 
-  function onMobileInputChange(event) {
-    const text = event.target.value;
-    if (!text) return;
-    if (rfbRef.current) {
-      try {
-        // Mobile OS keyboards cannot target the canvas directly, so forward text via VNC clipboard.
-        rfbRef.current.clipboardPasteFrom(text);
-        setStatus(`Typed ${text.length} char${text.length === 1 ? "" : "s"}`);
-      } catch {
-        setStatus("Failed to send typed text");
+  function sendKeysym(keysym) {
+    try {
+      rfbRef.current?.sendKey(keysym, "", true);
+      rfbRef.current?.sendKey(keysym, "", false);
+    } catch {
+      // ignore
+    }
+  }
+
+  function onMobileKeyDown(e) {
+    if (!rfbRef.current) return;
+    // Intercept special keys that won't produce an input event.
+    const map = {
+      Backspace:  0xFF08,
+      Tab:        0xFF09,
+      Enter:      0xFF0D,
+      Escape:     0xFF1B,
+      Delete:     0xFFFF,
+      ArrowLeft:  0xFF51,
+      ArrowUp:    0xFF52,
+      ArrowRight: 0xFF53,
+      ArrowDown:  0xFF54,
+      Home:       0xFF50,
+      End:        0xFF57,
+      PageUp:     0xFF55,
+      PageDown:   0xFF56,
+    };
+    if (map[e.key] !== undefined) {
+      e.preventDefault();
+      sendKeysym(map[e.key]);
+    }
+  }
+
+  function onMobileInput(e) {
+    if (!rfbRef.current) return;
+    const el = e.target;
+    const val = el.value;
+    // Sentinel char is a single space (" "). Anything after it = newly typed chars.
+    // If val is empty, user hit Backspace and consumed the sentinel — send BS.
+    if (val.length === 0) {
+      sendKeysym(0xFF08); // Backspace
+    } else if (val.length > 1) {
+      // Characters typed since last reset (everything after the sentinel space).
+      const newChars = val.slice(1);
+      for (const ch of newChars) {
+        const code = ch.codePointAt(0);
+        sendKeysym(code);
       }
     }
-    event.target.value = "";
+    // Reset to sentinel so next keypress is always detectable.
+    el.value = " ";
+    el.setSelectionRange(1, 1);
   }
 
   useEffect(() => {
@@ -197,17 +238,28 @@ export function SessionFrame({ session }) {
             >
               Open mobile keyboard
             </button>
-            <input
+            <textarea
               ref={mobileInputRef}
-              type="text"
+              rows={1}
+              defaultValue=" "
               inputMode="text"
               autoCapitalize="off"
               autoCorrect="off"
               autoComplete="off"
               spellCheck={false}
-              onChange={onMobileInputChange}
-              className="sr-only"
+              onKeyDown={onMobileKeyDown}
+              onInput={onMobileInput}
               aria-label="Mobile keyboard input bridge"
+              style={{
+                position: "fixed",
+                bottom: 0,
+                left: 0,
+                width: "100%",
+                height: "1px",
+                opacity: 0,
+                pointerEvents: "none",
+                zIndex: -1,
+              }}
             />
           </div>
         ) : null}
