@@ -6,6 +6,27 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const frontendUrlHost = (() => {
+  try {
+    const raw = process.env.FRONTEND_URL?.trim();
+    return raw ? new URL(raw).hostname : null;
+  } catch {
+    return null;
+  }
+})();
+const allowedHosts = Array.from(
+  new Set(
+    [
+      "localhost",
+      "127.0.0.1",
+      frontendUrlHost,
+      ...(process.env.VITE_ALLOWED_HOSTS || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ].filter(Boolean),
+  ),
+);
 
 export default defineConfig({
   plugins: [
@@ -64,6 +85,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts,
     proxy: {
       "/api": {
         target: "http://backend:8000",
