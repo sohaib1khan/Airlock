@@ -99,7 +99,7 @@ function MFAForm() {
     setWebAuthnBusy(true);
     try {
       const { data: opts } = await api.post("/api/auth/mfa/webauthn/authenticate/begin");
-      const asseResp = await startAuthentication({ optionsJSON: JSON.stringify(opts) });
+      const asseResp = await startAuthentication({ optionsJSON: opts });
       const { data } = await api.post("/api/auth/mfa/verify", { webauthn: asseResp });
       setAccessToken(data.access_token);
       navigate("/dashboard", { replace: true });

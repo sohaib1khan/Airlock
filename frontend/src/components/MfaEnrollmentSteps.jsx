@@ -147,7 +147,7 @@ export function MfaEnrollmentSteps({
     setWebBusy(true);
     try {
       const { data: opts } = await api.post("/api/auth/mfa/webauthn/register/begin");
-      const attResp = await startRegistration({ optionsJSON: JSON.stringify(opts) });
+      const attResp = await startRegistration({ optionsJSON: opts });
       const { data } = await api.post("/api/auth/mfa/webauthn/register/finish", { credential: attResp });
       if (data.access_token) {
         setAccessToken(data.access_token);
