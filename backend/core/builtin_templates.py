@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from api.schemas import ContainerTemplateImportRequest
 from config import get_settings
-from db.models import ContainerTemplate
+from db.models import ContainerTemplate, PreconnectChallenge, WorkspaceSession
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,13 @@ def seed_builtin_templates(db: Session) -> int:
     )
     for row in cinnamon_rows:
         logger.info("Removing deprecated Cinnamon template %s (%s)", row.name, row.id)
+        # Delete child rows first to avoid FK constraint failures.
+        db.query(PreconnectChallenge).filter(PreconnectChallenge.template_id == row.id).delete(synchronize_session=False)
+        db.query(WorkspaceSession).filter(WorkspaceSession.template_id == row.id).delete(synchronize_session=False)
         db.delete(row)
         removed += 1
+    if removed:
+        db.commit()
 
     seen_builtin_ids: set[str] = set()
     for path in sorted(root.rglob("*.airlock-template.yaml")):
