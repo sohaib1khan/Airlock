@@ -11,7 +11,8 @@ function toAbsoluteWebSocketUrl(relativeUrl) {
 }
 
 export function SessionFrame({ session }) {
-  const mountRef = useRef(null);
+  const mountRef = useRef(null);  // fullscreen wrapper
+  const vncRef = useRef(null);    // noVNC canvas target
   const rfbRef = useRef(null);
   const audioRef = useRef(null);
   const mobileInputRef = useRef(null);
@@ -41,7 +42,7 @@ export function SessionFrame({ session }) {
   }, []);
 
   useEffect(() => {
-    if (!session?.id || !session?.websocket_url || !mountRef.current) return;
+    if (!session?.id || !session?.websocket_url || !vncRef.current) return;
     let cancelled = false;
     let rfb = null;
 
@@ -52,7 +53,7 @@ export function SessionFrame({ session }) {
         if (cancelled) return;
         const targetUrl = toAbsoluteWebSocketUrl(data.websocket_url);
         setStatus("Connecting noVNC transport…");
-        rfb = new RFB(mountRef.current, targetUrl);
+        rfb = new RFB(vncRef.current, targetUrl);
         rfb.viewOnly = false;
         rfb.scaleViewport = true;
         rfb.resizeSession = true;
@@ -238,39 +239,53 @@ export function SessionFrame({ session }) {
             >
               Open mobile keyboard
             </button>
-            <textarea
-              ref={mobileInputRef}
-              rows={1}
-              defaultValue=" "
-              inputMode="text"
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              onKeyDown={onMobileKeyDown}
-              onInput={onMobileInput}
-              aria-label="Mobile keyboard input bridge"
-              style={{
-                position: "fixed",
-                bottom: 0,
-                left: 0,
-                width: "100%",
-                height: "1px",
-                opacity: 0,
-                pointerEvents: "none",
-                zIndex: -1,
-              }}
-            />
           </div>
         ) : null}
       </div>
+      {/* Wrapper is the fullscreen target so overlays inside remain visible */}
       <div
         ref={mountRef}
-        className={`overflow-hidden rounded-md border border-border bg-black ${
+        className={`relative overflow-hidden rounded-md border border-border bg-black ${
           isFullscreen ? "h-screen w-screen" : "h-[520px]"
         }`}
         style={{ touchAction: "none" }}
-      />
+      >
+        {/* noVNC renders into this inner div */}
+        <div ref={vncRef} className="absolute inset-0" />
+        {showMobileKeyboard ? (
+          <button
+            type="button"
+            onClick={openMobileKeyboard}
+            className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/20 bg-black/60 px-4 py-2 text-xs text-white backdrop-blur-sm active:bg-black/80"
+            style={{ touchAction: "manipulation" }}
+          >
+            ⌨ Keyboard
+          </button>
+        ) : null}
+        <textarea
+          ref={mobileInputRef}
+          rows={1}
+          defaultValue=" "
+          inputMode="text"
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          onKeyDown={onMobileKeyDown}
+          onInput={onMobileInput}
+          aria-label="Mobile keyboard input bridge"
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            width: "100%",
+            height: "1px",
+            opacity: 0,
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        />
+      </div>
       {/* Hidden audio element — connected to the container audio stream when user enables audio */}
       <audio ref={audioRef} style={{ display: "none" }} />
     </div>
