@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN useradd -m -s /bin/bash kuser \
     && mkdir -p /home/kuser/.vnc /home/kuser/workspace \
+                /home/kuser/workspace/Desktop /home/kuser/workspace/Documents /home/kuser/workspace/Downloads \
                 /home/kuser/.config/pulse \
     && printf '%s\n' \
         '#!/bin/sh' \
@@ -53,7 +54,11 @@ RUN useradd -m -s /bin/bash kuser \
         '[ -r "$HOME/.Xresources" ] && xrdb "$HOME/.Xresources"' \
         'pulseaudio --start --exit-idle-time=-1 2>/dev/null || true' \
         'eval $(ssh-agent -s) > /dev/null 2>&1 || true' \
-        'exec dbus-launch --exit-with-session cinnamon-session --session cinnamon' \
+        'if command -v cinnamon-session-cinnamon2d >/dev/null 2>&1; then' \
+        '  exec dbus-launch --exit-with-session cinnamon-session-cinnamon2d' \
+        'else' \
+        '  exec dbus-launch --exit-with-session cinnamon-session --session cinnamon' \
+        'fi' \
         > /home/kuser/.vnc/xstartup \
     && chmod +x /home/kuser/.vnc/xstartup \
     && printf '%s\n' \
@@ -70,6 +75,18 @@ RUN useradd -m -s /bin/bash kuser \
         'x-scheme-handler/http=firefox-esr.desktop' \
         'x-scheme-handler/https=firefox-esr.desktop' \
         > /home/kuser/.config/mimeapps.list \
+    # Keep desktop/document/download actions under the persistent workspace mount so
+    # files created in the GUI show up in Airlock's file explorer immediately.
+    && printf '%s\n' \
+        'XDG_DESKTOP_DIR="$HOME/workspace/Desktop"' \
+        'XDG_DOCUMENTS_DIR="$HOME/workspace/Documents"' \
+        'XDG_DOWNLOAD_DIR="$HOME/workspace/Downloads"' \
+        'XDG_MUSIC_DIR="$HOME/workspace"' \
+        'XDG_PICTURES_DIR="$HOME/workspace"' \
+        'XDG_VIDEOS_DIR="$HOME/workspace"' \
+        'XDG_PUBLICSHARE_DIR="$HOME/workspace"' \
+        'XDG_TEMPLATES_DIR="$HOME/workspace"' \
+        > /home/kuser/.config/user-dirs.dirs \
     && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/firefox-esr 200 \
     && update-alternatives --set x-www-browser /usr/bin/firefox-esr \
     && chown -R kuser:kuser /home/kuser

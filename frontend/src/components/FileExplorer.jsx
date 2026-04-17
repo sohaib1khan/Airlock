@@ -69,6 +69,15 @@ export function FileExplorer({ sessionId, workspaceHome = "/home/kuser", onStatu
     };
   }, [sessionId, root]);
 
+  // Keep the list in sync with files created from inside the desktop session.
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    const id = window.setInterval(() => {
+      refreshFiles();
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [sessionId, cwd]);
+
   async function onUploadChange(e) {
     const file = e.target.files?.[0];
     if (!file || !sessionId) return;
