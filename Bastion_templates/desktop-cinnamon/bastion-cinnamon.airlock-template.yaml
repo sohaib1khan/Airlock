@@ -4,10 +4,10 @@ template:
   name: Bastion desktop (Cinnamon)
   description: |
     Cinnamon desktop over VNC with websockify on port 6901 and path /websockify (Airlock default).
-    This image is local-only. Build it on the Docker host before starting Cinnamon sessions:
-    docker compose build bastion-cinnamon
+    Published on Docker Hub:
+    docker pull skhan1010/bastion-cinnamon:latest
     The template is pre-seeded when the backend starts.
-  docker_image: airlock/bastion-cinnamon:latest
+  docker_image: skhan1010/bastion-cinnamon:latest
   workspace_home: /home/kuser/workspace
   tools:
     - cinnamon
