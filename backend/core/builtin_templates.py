@@ -22,13 +22,14 @@ def _stable_template_id(path: Path) -> uuid.UUID:
 
 
 def seed_builtin_templates(db: Session) -> int:
-    """Insert missing built-in templates. Returns count of rows inserted."""
+    """Insert missing built-ins and refresh existing built-in rows from disk."""
     root = get_settings().builtin_templates_root()
     if root is None:
         logger.info("No built-in templates directory found; skipping seed")
         return 0
 
     inserted = 0
+    updated = 0
     for path in sorted(root.rglob("*.airlock-template.yaml")):
         try:
             raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -49,6 +50,44 @@ def seed_builtin_templates(db: Session) -> int:
         tid = str(_stable_template_id(path))
         existing = db.get(ContainerTemplate, tid)
         if existing is not None:
+            # Keep built-ins in sync with the repo-shipped template files.
+            # Skip templates created by users/admins.
+            if existing.created_by_id is not None:
+                continue
+            changed = False
+            if existing.name != data.name:
+                existing.name = data.name
+                changed = True
+            if existing.description != data.description:
+                existing.description = data.description
+                changed = True
+            if existing.docker_image != data.docker_image:
+                existing.docker_image = data.docker_image
+                changed = True
+            if existing.tools != data.tools:
+                existing.tools = data.tools
+                changed = True
+            if existing.persistent_volume != data.persistent_volume:
+                existing.persistent_volume = data.persistent_volume
+                changed = True
+            if existing.volume_path != data.volume_path:
+                existing.volume_path = data.volume_path
+                changed = True
+            if existing.env_vars != data.env_vars:
+                existing.env_vars = data.env_vars
+                changed = True
+            if existing.resource_limits != data.resource_limits:
+                existing.resource_limits = data.resource_limits
+                changed = True
+            if existing.max_runtime_minutes != data.max_runtime_minutes:
+                existing.max_runtime_minutes = data.max_runtime_minutes
+                changed = True
+            if existing.workspace_home != data.workspace_home:
+                existing.workspace_home = data.workspace_home
+                changed = True
+            if changed:
+                updated += 1
+                logger.info("Updated built-in template %s (%s)", data.name, path.name)
             continue
 
         tpl = ContainerTemplate(
@@ -69,7 +108,7 @@ def seed_builtin_templates(db: Session) -> int:
         inserted += 1
         logger.info("Seeded built-in template %s (%s)", data.name, path.name)
 
-    if not inserted:
+    if not inserted and not updated:
         return 0
     try:
         db.commit()
@@ -77,4 +116,4 @@ def seed_builtin_templates(db: Session) -> int:
         db.rollback()
         logger.warning("Built-in template seed hit a DB conflict; another process may have seeded")
         return 0
-    return inserted
+    return inserted + updated
