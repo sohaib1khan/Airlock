@@ -1,0 +1,8 @@
+# Keep `docker build -f backend/Dockerfile .` contexts small
+frontend/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+.git
+data
+*.db

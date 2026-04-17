@@ -1,0 +1,23 @@
+format_version: airlock-template-v1
+exported_at: "2026-04-15T00:00:00+00:00"
+template:
+  name: Bastion desktop (XFCE)
+  description: |
+    XFCE desktop over VNC with websockify on port 6901 and path /websockify (Airlock default).
+    This image is not on Docker Hub. Before starting sessions, build it on the Docker host, e.g.:
+    docker compose --profile bastion build bastion-desktop
+    (from the Airlock repo root), or: docker build -t airlock/bastion-desktop:latest .
+    (from Bastion_templates/desktop-xfce). The template is pre-seeded when the backend starts.
+  docker_image: airlock/bastion-desktop:latest
+  workspace_home: /home/kuser
+  tools:
+    - xfce4
+    - tigervnc
+    - websockify
+  # Named Docker volume (per user + template) mounted here; survives container restarts.
+  persistent_volume: true
+  volume_path: /home/kuser/workspace
+  env_vars: {}
+  resource_limits: {}
+  # Auto-stop sessions after 8 hours to avoid perpetual runtime.
+  max_runtime_minutes: 480

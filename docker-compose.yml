@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      # Pre-built templates (*.airlock-template.yaml); image also embeds a copy.
+      - ./Bastion_templates:/app/Bastion_templates:ro
+      # Required for workspace container create/attach (SessionManager → Docker API).
+      - /var/run/docker.sock:/var/run/docker.sock
+    # default: same network as frontend (Vite proxies to http://backend:8000).
+    # internal_workspace: must match INTERNAL_DOCKER_NETWORK in .env (workspace IPs / attach).
+    networks:
+      - default
+      - internal_workspace
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    env_file:
+      - .env
+    ports:
+      - "32770:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Builds airlock/bastion-desktop:latest (local-only image, not on Docker Hub).
+  # The container exits immediately; the image is used by DockerManager when
+  # users launch workspace sessions. Run `docker compose build bastion-desktop`
+  # to rebuild after changes to Bastion_templates/desktop-xfce/.
+  bastion-desktop:
+    image: airlock/bastion-desktop:latest
+    build:
+      context: ./Bastion_templates/desktop-xfce
+    entrypoint: ["true"]
+    restart: "no"
+
+  # Cinnamon variant (same VNC/audio contract as bastion-desktop).
+  bastion-cinnamon:
+    image: airlock/bastion-cinnamon:latest
+    build:
+      context: ./Bastion_templates/desktop-cinnamon
+    entrypoint: ["true"]
+    restart: "no"
+
+networks:
+  # Real Docker network name = INTERNAL_DOCKER_NETWORK (default airlock_internal).
+  internal_workspace:
+    name: ${INTERNAL_DOCKER_NETWORK:-airlock_internal}

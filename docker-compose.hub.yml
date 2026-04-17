@@ -1,0 +1,45 @@
+# Run Airlock from pre-built container images (Docker Hub, GHCR, etc.).
+#
+# 1. Copy .env.example → .env and set JWT_SECRET, SESSION_SECRET, URLs (see README).
+# 2. In .env set:
+#      AIRLOCK_BACKEND_IMAGE=your-registry/airlock-backend:tag
+#      AIRLOCK_FRONTEND_IMAGE=your-registry/airlock-frontend:tag
+# 3. docker compose -f docker-compose.hub.yml pull
+# 4. docker compose -f docker-compose.hub.yml up -d
+#
+# Until you publish images, use the default compose file (build from this repo):
+#   docker compose up --build
+#
+# Bastion desktop workspace images are optional; build on the host for templates you use:
+#   docker compose build bastion-desktop
+#   docker compose build bastion-cinnamon
+
+services:
+  backend:
+    image: ${AIRLOCK_BACKEND_IMAGE:?Set AIRLOCK_BACKEND_IMAGE in .env (e.g. yourname/airlock-backend:latest)}
+    env_file:
+      - .env
+    ports:
+      - "${AIRLOCK_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./Bastion_templates:/app/Bastion_templates:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - internal_workspace
+    restart: unless-stopped
+
+  frontend:
+    image: ${AIRLOCK_FRONTEND_IMAGE:?Set AIRLOCK_FRONTEND_IMAGE in .env (e.g. yourname/airlock-frontend:latest)}
+    env_file:
+      - .env
+    ports:
+      - "${AIRLOCK_FRONTEND_PORT:-32770}:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  internal_workspace:
+    name: ${INTERNAL_DOCKER_NETWORK:-airlock_internal}

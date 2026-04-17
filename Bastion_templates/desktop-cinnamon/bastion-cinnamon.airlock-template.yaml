@@ -1,0 +1,21 @@
+format_version: airlock-template-v1
+exported_at: "2026-04-16T00:00:00+00:00"
+template:
+  name: Bastion desktop (Cinnamon)
+  description: |
+    Cinnamon desktop over VNC with websockify on port 6901 and path /websockify (Airlock default).
+    This image is not on Docker Hub. Before starting sessions, build it on the Docker host, e.g.:
+    docker compose build bastion-cinnamon
+    (from the Airlock repo root), or: docker build -t airlock/bastion-cinnamon:latest .
+    (from Bastion_templates/desktop-cinnamon). The template is pre-seeded when the backend starts.
+  docker_image: airlock/bastion-cinnamon:latest
+  workspace_home: /home/kuser
+  tools:
+    - cinnamon
+    - tigervnc
+    - websockify
+  persistent_volume: true
+  volume_path: /home/kuser/workspace
+  env_vars: {}
+  resource_limits: {}
+  max_runtime_minutes: 480

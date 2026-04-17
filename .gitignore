@@ -1,0 +1,46 @@
+# --- Secrets & local environment ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+build/
+
+# --- App data (DB, audit logs, uploads) ---
+data/
+*.sqlite3
+*.db
+
+# --- Keys & certificates (never commit) ---
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.key
+
+# --- Test / coverage ---
+.coverage
+htmlcov/
+.tox/
+
+# --- IDE & OS ---
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~
+
+# --- Project-specific (local planning; keep out of public repo) ---
+roadmap.md
